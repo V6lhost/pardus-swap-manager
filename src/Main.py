@@ -1,0 +1,118 @@
+import os
+import sys
+from pathlib import Path
+import psutil
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QTableWidgetItem
+from PySide6.QtUiTools import QUiLoader
+from PySide6.QtCore import QFile, QTimer, Qt, QRectF
+from PySide6.QtGui import QPainter, QPen, QColor, QFont, QPainterPath
+
+from custom_widgets import CircularStatusWidget
+from helper_functions import *
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super(MainWindow, self).__init__()
+
+        current_dir = Path(__file__).resolve().parent
+        ui_path = current_dir.parent / "ui" / "MainWindow.ui"
+
+        loader = QUiLoader()
+        ui_file = QFile(ui_path)
+        self.ui = loader.load(ui_file)
+        ui_file.close()
+
+        self.setCentralWidget(self.ui)
+        self.setWindowTitle("Pardus SWAP Manager")
+
+        # Force fixed size
+        self.setMinimumSize(400, 600)
+        self.setMaximumSize(400, 600)
+
+        # Import custom widgets
+        self.ram_graph = CircularStatusWidget()
+
+        layout = QVBoxLayout(self.ui.boxRamStatus)
+        layout.addWidget(self.ram_graph)
+
+        self.swap_graph = CircularStatusWidget()
+
+        layout = QVBoxLayout(self.ui.boxSwapStatus)
+        layout.addWidget(self.swap_graph)
+
+        # Set up the swap table
+        self.ui.tableSwap.setColumnCount(5)
+        self.ui.tableSwap.setHorizontalHeaderLabels(["Path", "Type", "Size", "Priority", "Actions"])
+        
+        header = self.ui.tableSwap.horizontalHeader()
+        header.setSectionResizeMode(0, header.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, header.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, header.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, header.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, header.ResizeMode.ResizeToContents)
+
+        # Disable editing
+        self.ui.tableSwap.setEditTriggers(self.ui.tableSwap.EditTrigger.NoEditTriggers)
+        
+        # Call update functions manually for first time
+        self.update_information_periodically()
+        self.update_information_once()
+
+        # Timer for autoupdate
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_information_periodically)
+        self.timer.start(500)
+
+
+
+    def update_information_periodically(self):
+        # Update RAM status
+        ram_status = get_memory_status()       
+        self.ram_graph.set_values(ram_status['percentage'], ram_status['used'], ram_status['total'])
+
+        # Update SWAP status
+        swap_status = get_memory_status("swap")
+        self.swap_graph.set_values(swap_status['percentage'], swap_status['used'], swap_status['total'])
+
+    def update_information_once(self):
+
+        # Update SWAP table
+        swaps = get_swap_information()
+        
+        self.ui.tableSwap.setRowCount(0) # Clean the table
+
+        for index, swap in enumerate(swaps):
+            self.ui.tableSwap.insertRow(index)
+
+            self.ui.tableSwap.setItem(index, 0, QTableWidgetItem(swap["path"]))
+            self.ui.tableSwap.setItem(index, 1, QTableWidgetItem(swap["swap_type"]))
+            self.ui.tableSwap.setItem(index, 2, QTableWidgetItem(f"{swap['size']} GiB"))
+            self.ui.tableSwap.setItem(index, 3, QTableWidgetItem(swap["priority"]))
+            self.ui.tableSwap.setItem(index, 4, QTableWidgetItem("Placeholder"))
+        
+        # Update SWAP suggestion
+        swap_suggestion = check_swap_requirement()
+        self.ui.labelSwapSuggested.setText(f"{swap_suggestion} suggested")
+
+        # Update suggested compression algorithm based on AVX support status of CPU
+        avx_support = check_cpu_avx_support()
+
+        if avx_support:
+            self.ui.labelSuggestedAlgorithm.setText("ZSTD")
+        else:
+            self.ui.labelSuggestedAlgorithm.setText("LZ4")
+        
+        # Update disk type
+        disk = get_disk_type()
+        self.ui.labelDiskType.setText(disk)
+
+
+
+
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
