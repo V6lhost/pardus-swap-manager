@@ -10,6 +10,27 @@ from PySide6.QtGui import QPainter, QPen, QColor, QFont, QPainterPath
 from custom_widgets import CircularStatusWidget
 from helper_functions import *
 
+# Custom ui loader class and function to make the code cleaner
+class UiLoader(QUiLoader):
+    def __init__(self, baseinstance):
+        super().__init__()
+        self.baseinstance = baseinstance
+
+    def createWidget(self, class_name, parent=None, name=""):
+        if parent is None and self.baseinstance:
+            return self.baseinstance
+        return super().createWidget(class_name, parent, name)
+
+def load_ui(ui_path, baseinstance):
+    loader = UiLoader(baseinstance)
+    ui_file = QFile(ui_path)
+    if not ui_file.open(QFile.ReadOnly):
+        print(f"Error while loading ui file: {ui_path}")
+        return None
+    widget = loader.load(ui_file)
+    ui_file.close()
+    return widget
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -17,12 +38,7 @@ class MainWindow(QMainWindow):
         current_dir = Path(__file__).resolve().parent
         ui_path = current_dir.parent / "ui" / "MainWindow.ui"
 
-        loader = QUiLoader()
-        ui_file = QFile(ui_path)
-        self.ui = loader.load(ui_file)
-        ui_file.close()
-
-        self.setCentralWidget(self.ui)
+        load_ui(ui_path, self)
         self.setWindowTitle("Pardus SWAP Manager")
 
         # Force fixed size
@@ -32,19 +48,19 @@ class MainWindow(QMainWindow):
         # Import custom widgets
         self.ram_graph = CircularStatusWidget()
 
-        layout = QVBoxLayout(self.ui.boxRamStatus)
+        layout = QVBoxLayout(self.boxRamStatus)
         layout.addWidget(self.ram_graph)
 
         self.swap_graph = CircularStatusWidget()
 
-        layout = QVBoxLayout(self.ui.boxSwapStatus)
+        layout = QVBoxLayout(self.boxSwapStatus)
         layout.addWidget(self.swap_graph)
 
         # Set up the swap table
-        self.ui.tableSwap.setColumnCount(5)
-        self.ui.tableSwap.setHorizontalHeaderLabels(["Path", "Type", "Size", "Priority", "Actions"])
+        self.tableSwap.setColumnCount(5)
+        self.tableSwap.setHorizontalHeaderLabels(["Path", "Type", "Size", "Priority", "Actions"])
         
-        header = self.ui.tableSwap.horizontalHeader()
+        header = self.tableSwap.horizontalHeader()
         header.setSectionResizeMode(0, header.ResizeMode.Stretch)
         header.setSectionResizeMode(1, header.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, header.ResizeMode.ResizeToContents)
@@ -52,7 +68,7 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(4, header.ResizeMode.ResizeToContents)
 
         # Disable editing
-        self.ui.tableSwap.setEditTriggers(self.ui.tableSwap.EditTrigger.NoEditTriggers)
+        self.tableSwap.setEditTriggers(self.tableSwap.EditTrigger.NoEditTriggers)
         
         # Call update functions manually for first time
         self.update_information_periodically()
@@ -79,32 +95,32 @@ class MainWindow(QMainWindow):
         # Update SWAP table
         swaps = get_swap_information()
         
-        self.ui.tableSwap.setRowCount(0) # Clean the table
+        self.tableSwap.setRowCount(0) # Clean the table
 
         for index, swap in enumerate(swaps):
-            self.ui.tableSwap.insertRow(index)
+            self.tableSwap.insertRow(index)
 
-            self.ui.tableSwap.setItem(index, 0, QTableWidgetItem(swap["path"]))
-            self.ui.tableSwap.setItem(index, 1, QTableWidgetItem(swap["swap_type"]))
-            self.ui.tableSwap.setItem(index, 2, QTableWidgetItem(f"{swap['size']} GiB"))
-            self.ui.tableSwap.setItem(index, 3, QTableWidgetItem(swap["priority"]))
-            self.ui.tableSwap.setItem(index, 4, QTableWidgetItem("Placeholder"))
+            self.tableSwap.setItem(index, 0, QTableWidgetItem(swap["path"]))
+            self.tableSwap.setItem(index, 1, QTableWidgetItem(swap["swap_type"]))
+            self.tableSwap.setItem(index, 2, QTableWidgetItem(f"{swap['size']} GiB"))
+            self.tableSwap.setItem(index, 3, QTableWidgetItem(swap["priority"]))
+            self.tableSwap.setItem(index, 4, QTableWidgetItem("Placeholder"))
         
         # Update SWAP suggestion
         swap_suggestion = check_swap_requirement()
-        self.ui.labelSwapSuggested.setText(f"{swap_suggestion} suggested")
+        self.labelSwapSuggested.setText(f"{swap_suggestion} suggested")
 
         # Update suggested compression algorithm based on AVX support status of CPU
         avx_support = check_cpu_avx_support()
 
         if avx_support:
-            self.ui.labelSuggestedAlgorithm.setText("ZSTD")
+            self.labelSuggestedAlgorithm.setText("ZSTD")
         else:
-            self.ui.labelSuggestedAlgorithm.setText("LZ4")
+            self.labelSuggestedAlgorithm.setText("LZ4")
         
         # Update disk type
         disk = get_disk_type()
-        self.ui.labelDiskType.setText(disk)
+        self.labelDiskType.setText(disk)
 
 
 
