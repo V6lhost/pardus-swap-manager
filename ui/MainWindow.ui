@@ -102,7 +102,7 @@
         </property>
         <layout class="QVBoxLayout" name="verticalLayout_3">
          <item>
-          <widget class="QPushButton" name="buttonCompatibilityTest">
+          <widget class="QPushButton" name="buttonBenchmark">
            <property name="minimumSize">
             <size>
              <width>0</width>
@@ -110,7 +110,7 @@
             </size>
            </property>
            <property name="text">
-            <string>Benchmark CPU and Disk</string>
+            <string>Benchmark</string>
            </property>
           </widget>
          </item>
