@@ -7,6 +7,8 @@ import subprocess
 import json
 from pathlib import Path
 
+# TODO: Switch to logging instead of printing errors
+
 # Create temp directory  and define last results directory
 tmp_dir = Path('/tmp/pardus-swap-manager')
 tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -27,8 +29,8 @@ def get_memory_status(mem_type="ram"):
         percentage = memory.percent
 
         return {
-            "used": f"{used_gib} GiB",
-            "total": f"{total_gib} GiB",
+            "used": used_gib,
+            "total": total_gib,
             "percentage": percentage
         }
 
@@ -41,30 +43,71 @@ def get_memory_status(mem_type="ram"):
             "percentage": 0
         }
 
-
 def get_swap_information():
-    swap_list = []
+    swap_list = {
+        "zram": {
+            "enabled": False,
+            "path": None,
+            "size": None,
+            "priority": None,
+            "algorithm": None
+        },
+        "swap": {
+            "enabled": False,
+            "type": None,
+            "path": None,
+            "size": None,
+            "priority": None,
+            "zswap_enabled": None,
+            "zswap_algorithm": None
+        }
+    }
 
     try:
-        with open("/proc/swaps", "r", encoding="utf-8") as f:
+        with open("/proc/swaps", "r") as f: # An example swaps file layout: Filename                                Type            Size            Used            Priority
+                                            #                               /dev/zram0                              partition       12017660        1750244         100
+                                            #                               /dev/sda3                               partition       12093436        0               -1
             swaps = f.readlines()
 
             for swap in swaps[1:]: # Skip the header line
                 data = swap.split()
-                if len(data) >= 5:
 
-                    swap_list.append({
-                        "path": data[0],
-                        "swap_type": data[1],
-                        "size": round(int(data[2]) / (1024 ** 2), 1), # Convert to GiB and round to 1 decimal place
-                        "priority": data[4]
-                    })
-            
-            return swap_list
-    
+                swap_path = data[0]
+
+                if "zram" in data[0]:
+                    swap_type = "zram"
+                else:
+                    swap_type = data[1]
+                
+                swap_size = round(int(data[2]) / (1024 ** 2), 1) # Convert to GiB and round to 1 decimal place to make it easy to read
+                swap_priority = int(data[4]) # Convert priority data to integer
+
+                slz = swap_list["zram"]
+                sls = swap_list["swap"]
+
+                if swap_type == "zram":
+                    zram = get_zram_information()
+                    slz["enabled"] = True
+                    slz["path"] = swap_path
+                    slz["size"] = swap_size
+                    slz["priority"] = swap_priority
+                    slz["algorithm"] = zram["algorithm"]
+                
+                else:
+                    sls["enabled"] = True
+                    sls["type"] = swap_type
+                    sls["path"] = swap_path[5:] # Clean '/dev/' prefix
+                    sls["size"] = swap_size
+                    sls["priority"] = swap_priority
+
+                zswap = get_zswap_information()
+                sls["zswap_enabled"] = zswap["enabled"]
+                sls["zswap_algorithm"] = zswap["algorithm"]
+
     except Exception as e:
-        print(f"Error while reading /proc/swaps file: {e}. Returning empty fallback list.")
-        return swap_list
+        print(f"Error while reading swap information: {e}")
+    
+    return swap_list
 
 
 def check_cpu_avx_support(): # Its a simple way to check if the system has a modern CPU to handle ZSTD compression
@@ -372,4 +415,103 @@ def parse_compression_results(data):
     return {
         "compress_speed": compress_speed,
         "decompress_speed": decompress_speed
-    }
+    }            
+
+def get_zswap_information():
+    zswap_info_dir = Path("/sys/module/zswap")
+
+    try:
+        if not zswap_info_dir.exists():
+            return {
+                "status": True,
+                "enabled": False,
+                "algorithm": None,
+                "message": "Zswap module not loaded"
+            }
+        
+        with open(zswap_info_dir / "parameters/enabled", "r") as f:
+            parameters_enabled = f.read().strip()
+            enabled = parameters_enabled in ("Y", "1")
+
+        with open(zswap_info_dir / "parameters/compressor", "r") as f:
+            algorithm = f.read().strip()
+
+        return {
+            "status": True,
+            "enabled": enabled,
+            "algorithm": algorithm,
+            "message": "Success"
+        }
+    except Exception as e:
+        return {
+            "status": False,
+            "enabled": None,
+            "algorithm": None,
+            "message": e
+        }
+
+def get_zram_information():
+    try:     
+        with open("/sys/block/zram0/comp_algorithm", "r") as f:
+            current_algorithm = re.search(r'\[(.*?)\]', f.read()).group(1)
+            return {
+                "status": True,
+                "enabled": True,
+                "algorithm": current_algorithm,
+                "message": "Success"
+            }
+    except Exception as e:
+        return {
+            "status": False,
+            "enabled": None,
+            "algorithm": None,
+            "message": e
+        }
+    
+def get_swappiness():
+    try:
+        with open("/proc/sys/vm/swappiness", "r") as f:
+            swappiness = int(f.read().strip())
+        return swappiness
+    except:
+        return 0
+
+def get_usable_compression_algorithms():
+    suggested_algorithms = ["lz4", "zstd", "lzo", "lzo-rle"]
+    usable_algorithms = []
+
+    try:
+        with open("/proc/crypto", "r") as f:
+            crypto_support = f.read()
+
+            for algorithm in suggested_algorithms:
+                if algorithm in crypto_support:
+                    usable_algorithms.append(algorithm)
+    
+    except Exception as e:
+        print(f"Error while reading /proc/crypto: {e}")
+    
+    return usable_algorithms
+
+def get_partitions():
+    partitions = []
+
+    try:
+        list_blocks = subprocess.run(
+            ["lsblk", "-J", "-o", "NAME" ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        data = json.loads(list_blocks.stdout)
+        for disk in data["blockdevices"]:
+            for param in disk:
+                if "children" in param:
+                    for partition in disk["children"]:
+                        partitions.append(partition["name"])
+
+    except Exception as e:
+        print(f"Error while getting partitions: {e}")
+    
+    return partitions

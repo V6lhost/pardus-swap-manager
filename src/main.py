@@ -3,6 +3,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QApplication,
+    QFileDialog,
     QDialog,
     QDialogButtonBox,
     QMainWindow,
@@ -19,7 +20,7 @@ from PySide6.QtCore import (
 )
 
 from custom_widgets import * # CircularStatusWidget, SpinnerWidget, ProgressbarWidget
-from helper_functions import * # get_memory_status, get_swap_information, check_cpu_avx_support, get_disk_type, check_swap_requirement, prepare_silesia_benchmark_data, benchmark_disk, benchmark_algorithm, clear_cache, check_and_disable_cow, score_by_threshold
+from helper_functions import * # get_memory_status, get_swap_information, check_cpu_avx_support, get_disk_type, check_swap_requirement, prepare_silesia_benchmark_data, benchmark_disk, benchmark_algorithm, clear_cache, check_and_disable_cow, score_by_threshold, get_swappiness, get_usable_compression_algorithms, get_partitions
 from calibration import * # calculate_disk_score
 
 # Custom ui loader class and function to make the code cleaner
@@ -273,6 +274,135 @@ class BenchmarkWindow(QDialog):
             self.benchmark_thread.wait()
         self.done(0)
 
+class ManagerWindow(QDialog):
+    def __init__(self, parent=None, page="swap"):
+        super(ManagerWindow, self).__init__()
+
+        pages = {
+            "swap": 0,
+            "zram": 1
+        }
+
+        current_dir = Path(__file__).resolve().parent
+        ui_path = current_dir.parent / "ui" / "ManageSwapZram.ui"
+
+        load_ui(ui_path, self)
+
+        # Connect size sliders and double spin boxes. can not be done in the ui side because slider takes integer values and double spin box takes float values. we have to convert them first. there its done with lambda functions. sliders scaled as 10x for proper sync
+        self.sliderSwapSize.valueChanged.connect(
+            lambda value: self.doubleSpinBoxSwapSize.setValue(value / 10) 
+            if abs(self.doubleSpinBoxSwapSize.value() - (value / 10)) > 1e-5 else None # Check if its already synced before syncing again. use 1e-5 for float calculating error tolerance
+        )
+        self.doubleSpinBoxSwapSize.valueChanged.connect(
+            lambda value: self.sliderSwapSize.setValue(int(value * 10)) 
+            if abs(self.sliderSwapSize.value() - int(value * 10)) > 0 else None
+        )
+
+        self.sliderZramSize.valueChanged.connect(
+            lambda value: self.doubleSpinBoxZramSize.setValue(value / 10) 
+            if abs(self.doubleSpinBoxZramSize.value() - (value / 10)) > 1e-5 else None
+        )
+        self.doubleSpinBoxZramSize.valueChanged.connect(
+            lambda value: self.sliderZramSize.setValue(int(value * 10)) 
+            if abs(self.sliderZramSize.value() - int(value * 10)) > 0 else None
+        )
+
+        self.comboBoxSwapType.addItem("File")
+        self.comboBoxSwapType.addItem("Partition")
+
+        swappiness = get_swappiness()
+        self.spinBoxSwappiness.setValue(swappiness)
+
+        swaps = get_swap_information()
+        usable_algorithms = get_usable_compression_algorithms()
+        ram = get_memory_status()
+        partitions = get_partitions()
+
+        zram = swaps["zram"]
+        swap = swaps["swap"]
+        ram_size = ram["total"]
+
+        # Limit the maximum allowed swap and zram size. 2x for swap, 1.5x for zram. we have to limit it before loading current status otherwise it may cause bugs
+        self.doubleSpinBoxSwapSize.setMaximum(ram_size*2)
+        self.sliderSwapSize.setMaximum(ram_size*2*10)
+
+        self.doubleSpinBoxZramSize.setMaximum(round(ram_size*1.5))
+        self.sliderZramSize.setMaximum(round(ram_size*1.5*10))
+
+        for algorithm in usable_algorithms:
+            self.comboBoxZramAlgorithm.addItem(algorithm)
+            self.comboBoxZswapAlgorithm.addItem(algorithm)
+        
+        for partition in partitions:
+            self.comboBoxSwapPartitionPath.addItem(partition)
+
+        if zram["enabled"]:
+            self.doubleSpinBoxZramSize.setValue(zram["size"])
+            self.spinBoxZramPriority.setValue(zram["priority"])
+            self.comboBoxZramAlgorithm.setCurrentText(zram["algorithm"])
+
+        else:
+            self.doubleSpinBoxZramSize.setValue(0.0)
+            self.spinBoxZramPriority.setValue(0)
+        
+        if swap["enabled"]:
+            self.doubleSpinBoxSwapSize.setValue(swap["size"])
+            self.spinBoxSwapPriority.setValue(swap["priority"])
+            if swap["type"] == "partition":
+                self.comboBoxSwapType.setCurrentText("Partition")
+                self.comboBoxSwapPartitionPath.setCurrentText(swap["path"])
+                self.stackedWidgetSwapPath.setCurrentIndex(1)
+            else:
+                self.comboBoxSwapType.setCurrentText("File")
+                self.lineEditSwapFilePath.setText(swap["path"])
+                self.stackedWidgetSwapPath.setCurrentIndex(0)
+            
+            self.radioButtonZswapEnabled.setChecked(swap["zswap_enabled"])
+            self.comboBoxZswapAlgorithm.setEnabled(swap["zswap_enabled"])
+            self.comboBoxZswapAlgorithm.setCurrentText(swap["zswap_algorithm"])
+        
+        else:
+            self.doubleSpinBoxSwapSize.setValue(0.0)
+            self.spinBoxSwapPriority.setValue(0)
+            self.comboBoxSwapType.setCurrentText("File")
+            self.lineEditSwapFilePath.setText("/swapfile")
+            self.stackedWidgetSwapPath.setCurrentIndex(0)
+            self.radioButtonZswapEnabled.setChecked(swap["zswap_enabled"])
+            self.comboBoxZramAlgorithm.setEnabled(swap["zswap_enabled"])
+            self.comboBoxZswapAlgorithm.setCurrentText(swap["zswap_algorithm"])
+
+        self.stackedWidget.setCurrentIndex(pages[page])
+
+        # Set checked button using current widget
+        current_index = self.stackedWidget.currentIndex()
+        if current_index == 0:
+            self.buttonSwap.setChecked(True)
+        else:
+            self.buttonZram.setChecked(True)
+
+        # Make the page switch when one of the buttons toggled. TODO: buttonZram.toggled.connect returns bool, but setCurrentIndex function requires integer normally. it works for now and probably will work forever, at least until we add a new page. but its not planned so lets left it as it was. fix if it may cause a problem in the future
+        self.buttonZram.toggled.connect(lambda page_id: self.stackedWidget.setCurrentIndex(page_id))
+
+        # Enable the zswap algorithm combo box if radio button is checked
+        self.radioButtonZswapEnabled.toggled.connect(self.comboBoxZswapAlgorithm.setEnabled)
+
+        # Change swap path stacked widget index when swaptype value changed
+        self.comboBoxSwapType.currentIndexChanged.connect(lambda value: self.stackedWidgetSwapPath.setCurrentIndex(value))
+
+        # Swappiness value reset button. now it just sets the vaule to last saved. TODO: make it set a fixed default level when right clicked
+        self.buttonSwappinessReset.clicked.connect(lambda: self.sliderSwappiness.setValue(swappiness))
+
+        self.buttonOpenFilePicker.clicked.connect(self.open_file_picker)
+
+    def open_file_picker(self):
+        path, _ = QFileDialog.getOpenFileName( # 'path, _' because _ takes the second variable and left a cleaner output to path variable
+            self, "Choose swapfile", "/"
+        )
+
+        if path:
+            self.lineEditSwapFilePath.setText(path)
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -297,57 +427,32 @@ class MainWindow(QMainWindow):
 
         layout = QVBoxLayout(self.boxSwapStatus)
         layout.addWidget(self.swap_graph)
-
-        # Set up the swap table
-        self.tableSwap.setColumnCount(5)
-        self.tableSwap.setHorizontalHeaderLabels(["Path", "Type", "Size", "Priority", "Actions"])
-        
-        header = self.tableSwap.horizontalHeader()
-        header.setSectionResizeMode(0, header.ResizeMode.Stretch)
-        header.setSectionResizeMode(1, header.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(2, header.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, header.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(4, header.ResizeMode.ResizeToContents)
-
-        # Disable editing
-        self.tableSwap.setEditTriggers(self.tableSwap.EditTrigger.NoEditTriggers)
         
         # Call update functions manually for first time
         self.update_information_periodically()
         self.update_information_once()
+        self.update_swap_table()
 
         # Timer for autoupdate
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_information_periodically)
         self.timer.start(500)
 
-        # Connect the buttonBenchmark into open_benchmark_window function
+        self.buttonZramEdit.clicked.connect(lambda: self.open_manager_window(page="zram"))
+        self.buttonSwapEdit.clicked.connect(lambda: self.open_manager_window(page="swap"))
+
         self.buttonBenchmark.clicked.connect(self.open_benchmark_window)
 
     def update_information_periodically(self):
         # Update RAM status
-        ram_status = get_memory_status()       
-        self.ram_graph.set_values(ram_status['percentage'], ram_status['used'], ram_status['total'])
+        ram_status = get_memory_status()
+        self.ram_graph.set_values(ram_status['percentage'], f"{ram_status['used']} GiB", f"{ram_status['total']} GiB")
 
         # Update SWAP status
         swap_status = get_memory_status("swap")
-        self.swap_graph.set_values(swap_status['percentage'], swap_status['used'], swap_status['total'])
+        self.swap_graph.set_values(swap_status['percentage'], f"{swap_status['used']} GiB", f"{swap_status['total']} GiB")
 
     def update_information_once(self):
-
-        # Update SWAP table
-        swaps = get_swap_information()
-        
-        self.tableSwap.setRowCount(0) # Clean the table
-
-        for index, swap in enumerate(swaps):
-            self.tableSwap.insertRow(index)
-
-            self.tableSwap.setItem(index, 0, QTableWidgetItem(swap["path"]))
-            self.tableSwap.setItem(index, 1, QTableWidgetItem(swap["swap_type"]))
-            self.tableSwap.setItem(index, 2, QTableWidgetItem(f"{swap['size']} GiB"))
-            self.tableSwap.setItem(index, 3, QTableWidgetItem(swap["priority"]))
-            self.tableSwap.setItem(index, 4, QTableWidgetItem("Placeholder"))
         
         # Update SWAP suggestion
         swap_suggestion = check_swap_requirement()
@@ -365,6 +470,34 @@ class MainWindow(QMainWindow):
         disk = get_disk_type()
         self.labelDiskType.setText(disk)
 
+    def update_swap_table(self):
+        swaps = get_swap_information()
+        
+        zram = swaps["zram"]
+        swap = swaps["swap"]
+
+        if zram["enabled"]:
+            self.labelZramPath.setText(zram["path"])
+            self.labelZramType.setText("zram")
+            self.labelZramSize.setText(str(zram["size"]))
+            self.labelZramPriority.setText(str(zram["priority"]))
+        else:
+            self.labelZramPath.setText("-")
+            self.labelZramType.setText("-")
+            self.labelZramSize.setText("-")
+            self.labelZramPriority.setText("-")
+        
+        if swap["enabled"]:
+            self.labelSwapPath.setText(swap["path"])
+            self.labelSwapType.setText(swap["type"])
+            self.labelSwapSize.setText(str(swap["size"]))
+            self.labelSwapPriority.setText(str(swap["priority"]))
+        else:
+            self.labelSwapPath.setText("-")
+            self.labelSwapType.setText("-")
+            self.labelSwapSize.setText("-")
+            self.labelSwapPriority.setText("-")
+
     def open_benchmark_window(self):
         benchmark_window = BenchmarkWindow(self)
 
@@ -373,6 +506,10 @@ class MainWindow(QMainWindow):
         result = benchmark_window.exec()
         if result == 2:
             self.open_benchmark_window()
+    
+    def open_manager_window(self, page="swap"):
+        manager_window = ManagerWindow(self, page=page)
+        result = manager_window.exec()
 
 
 
