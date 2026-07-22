@@ -68,6 +68,9 @@ def get_swap_information():
                                             #                               /dev/zram0                              partition       12017660        1750244         100
                                             #                               /dev/sda3                               partition       12093436        0               -1
             swaps = f.readlines()
+        
+            slz = swap_list["zram"]
+            sls = swap_list["swap"]
 
             for swap in swaps[1:]: # Skip the header line
                 data = swap.split()
@@ -81,9 +84,6 @@ def get_swap_information():
                 
                 swap_size = round(int(data[2]) / (1024 ** 2), 1) # Convert to GiB and round to 1 decimal place to make it easy to read
                 swap_priority = int(data[4]) # Convert priority data to integer
-
-                slz = swap_list["zram"]
-                sls = swap_list["swap"]
 
                 if swap_type == "zram":
                     zram = get_zram_information()
@@ -100,9 +100,9 @@ def get_swap_information():
                     sls["size"] = swap_size
                     sls["priority"] = swap_priority
 
-                zswap = get_zswap_information()
-                sls["zswap_enabled"] = zswap["enabled"]
-                sls["zswap_algorithm"] = zswap["algorithm"]
+            zswap = get_zswap_information()
+            sls["zswap_enabled"] = zswap["enabled"]
+            sls["zswap_algorithm"] = zswap["algorithm"]
 
     except Exception as e:
         print(f"Error while reading swap information: {e}")
