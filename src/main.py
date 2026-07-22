@@ -289,6 +289,7 @@ class ManagerWindow(QDialog):
         load_ui(ui_path, self)
         
         self.stackedWidget.setCurrentIndex(pages[page])
+        self.apply_button = self.buttonBox.button(QDialogButtonBox.Apply)
 
         self.set_size_limits()
         self.connect_ui_interactions()
@@ -404,6 +405,8 @@ class ManagerWindow(QDialog):
 
         self.buttonOpenFilePicker.clicked.connect(self.open_file_picker)
 
+        self.apply_button.clicked.connect(self.open_apply_configuration_dialog)
+
     def open_file_picker(self):
         path, _ = QFileDialog.getOpenFileName( # 'path, _' because _ takes the second variable and left a cleaner output to path variable
             self, "Choose swapfile", "/"
@@ -412,6 +415,23 @@ class ManagerWindow(QDialog):
         if path:
             self.lineEditSwapFilePath.setText(path)
 
+    def open_apply_configuration_dialog(self, _, diff=None):  # button.clicked.connect() gives the checked information as second parameter by default and function takes it as diff parameter. so we added '_' as the second parameter to take the checked parameter
+        if diff is None:
+            self.done(0)
+        else:
+            configuration_check_dialog = ConfigurationCheckDialog(self)
+            configuration_check_dialog.exec()
+
+        print(diff)
+
+class ConfigurationCheckDialog(QDialog):
+    def __init__(self, parent=None):
+        super(ConfigurationCheckDialog, self).__init__()
+
+        current_dir = Path(__file__).resolve().parent
+        ui_path = current_dir.parent / "ui" / "checkConfiguration.ui"
+
+        load_ui(ui_path, self)
 
 class MainWindow(QMainWindow):
     def __init__(self):
