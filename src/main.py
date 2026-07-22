@@ -287,26 +287,14 @@ class ManagerWindow(QDialog):
         ui_path = current_dir.parent / "ui" / "ManageSwapZram.ui"
 
         load_ui(ui_path, self)
+        
+        self.stackedWidget.setCurrentIndex(pages[page])
 
-        # Connect size sliders and double spin boxes. can not be done in the ui side because slider takes integer values and double spin box takes float values. we have to convert them first. there its done with lambda functions. sliders scaled as 10x for proper sync
-        self.sliderSwapSize.valueChanged.connect(
-            lambda value: self.doubleSpinBoxSwapSize.setValue(value / 10) 
-            if abs(self.doubleSpinBoxSwapSize.value() - (value / 10)) > 1e-5 else None # Check if its already synced before syncing again. use 1e-5 for float calculating error tolerance
-        )
-        self.doubleSpinBoxSwapSize.valueChanged.connect(
-            lambda value: self.sliderSwapSize.setValue(int(value * 10)) 
-            if abs(self.sliderSwapSize.value() - int(value * 10)) > 0 else None
-        )
+        self.set_size_limits()
+        self.connect_ui_interactions()
+        self.load_current_configuration()
 
-        self.sliderZramSize.valueChanged.connect(
-            lambda value: self.doubleSpinBoxZramSize.setValue(value / 10) 
-            if abs(self.doubleSpinBoxZramSize.value() - (value / 10)) > 1e-5 else None
-        )
-        self.doubleSpinBoxZramSize.valueChanged.connect(
-            lambda value: self.sliderZramSize.setValue(int(value * 10)) 
-            if abs(self.sliderZramSize.value() - int(value * 10)) > 0 else None
-        )
-
+    def load_current_configuration(self):
         self.comboBoxSwapType.addItem("File")
         self.comboBoxSwapType.addItem("Partition")
 
@@ -315,19 +303,10 @@ class ManagerWindow(QDialog):
 
         swaps = get_swap_information()
         usable_algorithms = get_usable_compression_algorithms()
-        ram = get_memory_status()
         partitions = get_partitions()
 
         zram = swaps["zram"]
         swap = swaps["swap"]
-        ram_size = ram["total"]
-
-        # Limit the maximum allowed swap and zram size. 2x for swap, 1.5x for zram. we have to limit it before loading current status otherwise it may cause bugs
-        self.doubleSpinBoxSwapSize.setMaximum(ram_size*2)
-        self.sliderSwapSize.setMaximum(ram_size*2*10)
-
-        self.doubleSpinBoxZramSize.setMaximum(round(ram_size*1.5))
-        self.sliderZramSize.setMaximum(round(ram_size*1.5*10))
 
         for algorithm in usable_algorithms:
             self.comboBoxZramAlgorithm.addItem(algorithm)
@@ -368,10 +347,39 @@ class ManagerWindow(QDialog):
             self.lineEditSwapFilePath.setText("/swapfile")
             self.stackedWidgetSwapPath.setCurrentIndex(0)
             self.radioButtonZswapEnabled.setChecked(swap["zswap_enabled"])
-            self.comboBoxZramAlgorithm.setEnabled(swap["zswap_enabled"])
+            self.comboBoxZswapAlgorithm.setEnabled(swap["zswap_enabled"])
             self.comboBoxZswapAlgorithm.setCurrentText(swap["zswap_algorithm"])
+    
+    def set_size_limits(self):
+        ram = get_memory_status()
+        ram_size = ram["total"]
 
-        self.stackedWidget.setCurrentIndex(pages[page])
+        # Limit the maximum allowed swap and zram size. 2x for swap, 1.5x for zram. we have to limit it before loading current status otherwise it may cause bugs
+        self.doubleSpinBoxSwapSize.setMaximum(ram_size*2)
+        self.sliderSwapSize.setMaximum(ram_size*2*10)
+
+        self.doubleSpinBoxZramSize.setMaximum(round(ram_size*1.5))
+        self.sliderZramSize.setMaximum(round(ram_size*1.5*10))
+
+    def connect_ui_interactions(self):
+        # Connect size sliders and double spin boxes. can not be done in the ui side because slider takes integer values and double spin box takes float values. we have to convert them first. there its done with lambda functions. sliders scaled as 10x for proper sync
+        self.sliderSwapSize.valueChanged.connect(
+            lambda value: self.doubleSpinBoxSwapSize.setValue(value / 10) 
+            if abs(self.doubleSpinBoxSwapSize.value() - (value / 10)) > 1e-5 else None # Check if its already synced before syncing again. use 1e-5 for float calculating error tolerance
+        )
+        self.doubleSpinBoxSwapSize.valueChanged.connect(
+            lambda value: self.sliderSwapSize.setValue(int(value * 10)) 
+            if abs(self.sliderSwapSize.value() - int(value * 10)) > 0 else None
+        )
+
+        self.sliderZramSize.valueChanged.connect(
+            lambda value: self.doubleSpinBoxZramSize.setValue(value / 10) 
+            if abs(self.doubleSpinBoxZramSize.value() - (value / 10)) > 1e-5 else None
+        )
+        self.doubleSpinBoxZramSize.valueChanged.connect(
+            lambda value: self.sliderZramSize.setValue(int(value * 10)) 
+            if abs(self.sliderZramSize.value() - int(value * 10)) > 0 else None
+        )
 
         # Set checked button using current widget
         current_index = self.stackedWidget.currentIndex()
@@ -388,6 +396,8 @@ class ManagerWindow(QDialog):
 
         # Change swap path stacked widget index when swaptype value changed
         self.comboBoxSwapType.currentIndexChanged.connect(lambda value: self.stackedWidgetSwapPath.setCurrentIndex(value))
+
+        swappiness = get_swappiness()
 
         # Swappiness value reset button. now it just sets the vaule to last saved. TODO: make it set a fixed default level when right clicked
         self.buttonSwappinessReset.clicked.connect(lambda: self.sliderSwappiness.setValue(swappiness))
