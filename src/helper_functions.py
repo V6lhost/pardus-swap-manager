@@ -480,6 +480,21 @@ def get_usable_compression_algorithms():
     suggested_algorithms = ["lz4", "zstd", "lzo", "lzo-rle"]
     usable_algorithms = []
 
+    for algorithm in suggested_algorithms:
+        try:
+            command = subprocess.run(
+                ["modprobe", algorithm],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+
+            print(f"Module {algorithm} is enabled")
+        
+        except subprocess.CalledProcessError as e:
+            print(f"Module {algorithm} failed: {e}")
+
     try:
         with open("/proc/crypto", "r") as f:
             crypto_support = f.read()
@@ -490,7 +505,7 @@ def get_usable_compression_algorithms():
     
     except Exception as e:
         print(f"Error while reading /proc/crypto: {e}")
-    
+
     return usable_algorithms
 
 def get_partitions():
