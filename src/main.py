@@ -406,7 +406,7 @@ class ManagerWindow(QDialog):
 
         self.buttonOpenFilePicker.clicked.connect(self.open_file_picker)
 
-        self.apply_button.clicked.connect(lambda: self.open_apply_configuration_dialog(diff=self.get_diff()))
+        self.apply_button.clicked.connect(lambda: self.open_apply_configuration_dialog(configuration=self.get_configuration_from_ui()))
 
     def open_file_picker(self):
         path, _ = QFileDialog.getOpenFileName( # 'path, _' because _ takes the second variable and left a cleaner output to path variable
@@ -416,69 +416,80 @@ class ManagerWindow(QDialog):
         if path:
             self.lineEditSwapFilePath.setText(path)
 
-    def get_diff(self):
-        zram = self.swaps["zram"]
-        swap = self.swaps["swap"]
-        diff = []
+    def get_configuration_from_ui(self):
+        configuration = {
+            "swappiness": None,
+            "type": None,
+            "zram": {
+                "enabled": False,
+                "path": None,
+                "size": None,
+                "priority": None,
+                "algorithm": None
+            },
+            "swap": {
+                "enabled": False,
+                "type": None,
+                "path": None,
+                "size": None,
+                "priority": None,
+                "zswap_enabled": None,
+                "zswap_algorithm": None
+            }
+        }
 
-        swappiness_new = self.spinBoxSwappiness.value()
-        if swappiness_new != self.swappiness:
-            diff.append({"swappiness": swappiness_new})
-        
+        configuration["swappiness"] = self.spinBoxSwappiness.value()
+
+        zram = configuration["zram"]
+        swap = configuration["swap"]
+
         current_page = self.stackedWidget.currentIndex()
-        if current_page:
-            zram_size_new = self.doubleSpinBoxZramSize.value()
-            if zram_size_new != zram["size"]:
-                diff.append({"zram_size": zram_size_new})
-            
-            zram_priority_new = self.spinBoxZramPriority.value()
-            if zram_priority_new != zram["priority"]:
-                diff.append({"zram_priority": zram_priority_new})
-
-            zram_algorithm_new = self.comboBoxZramAlgorithm.currentText()
-            if zram_algorithm_new != zram["algorithm"]:
-                diff.append({"zram_algorithm": zram_algorithm_new})
         
-        else:
-            swap_size_new = self.doubleSpinBoxSwapSize.value()
-            if swap_size_new != swap["size"]:
-                diff.append({"swap_size": swap_size_new})
+        if current_page: # Zram page
+            configuration["type"] = "zram"
+            zram_size = self.doubleSpinBoxZramSize.value()
+            zram_priority = self.spinBoxZramPriority.value()
+            zram_algorithm = self.comboBoxZramAlgorithm.currentText()
             
-            swap_priority_new = self.spinBoxSwapPriority.value()
-            if swap_priority_new != swap["priority"]:
-                diff.append({"swap_priority": swap_priority_new})
-            
-            swap_type_new = self.comboBoxSwapType.currentText()
+            if zram_size > 0:
+                zram["enabled"] = True
+                zram["size"] = zram_size
+                zram["priority"] = zram_priority
+                zram["algorithm"] = zram_algorithm
+        
+        else: # Swap page
+            configuration["type"] = "swap"
+            swap_size = self.doubleSpinBoxSwapSize.value()
+            swap_priority = self.spinBoxSwapPriority.value()
+            swap_type = self.comboBoxSwapType.currentIndex()
+            if swap_type: # index 0, file
+                swap_path = self.lineEditSwapFilePath.text()
+                swap_type = "file"
+            else: # index 1, partition
+                swap_path = self.comboBoxSwapPartitionPath.currentText()
+                swap_type = "partition"
+            zswap_enabled = self.radioButtonZswapEnabled.isChecked()
+            zswap_algorithm = self.comboBoxZswapAlgorithm.currentText()
 
-            if swap_type_new != swap["type"]:
-                diff.append({"swap_type": swap_type_new})
+            if swap_size > 0:
+                swap["enabled"] = True
+                swap["size"] = swap_size
+                swap["priority"] = swap_priority
+                swap["type"] = swap_type
+                swap["path"] = swap_path
+                swap["zswap_enabled"] = zswap_enabled
+                swap["zswap_algorithm"] = zswap_algorithm
+        
+        return configuration
 
-            if swap_type_new == "File":
-                swap_path_new = self.lineEditSwapFilePath.text()
-            else:
-                swap_path_new = self.comboBoxSwapPartitionPath.currentText()
-
-            if swap_path_new != swap["path"]:
-                    diff.append({"swap_path": swap_path_new})
-            
-            zswap_enabled_new = self.radioButtonZswapEnabled.isChecked()
-            if zswap_enabled_new != swap["zswap_enabled"]:
-                diff.append({"zswap_enabled": zswap_enabled_new})
-            
-            zswap_algorithm_new = self.comboBoxZswapAlgorithm.currentText()
-            if zswap_algorithm_new != swap["zswap_algorithm"]:
-                diff.append({"zswap_algorithm": zswap_algorithm_new})
-
-        return diff
-
-    def open_apply_configuration_dialog(self, diff=None):
-        if diff is None:
+    def open_apply_configuration_dialog(self, configuration=None):
+        if configuration is None:
             self.done(0)
         else:
             configuration_check_dialog = ConfigurationCheckDialog(self)
             configuration_check_dialog.exec()
 
-        print(diff)
+        print(configuration)
 
 class ConfigurationCheckDialog(QDialog):
     def __init__(self, parent=None):
