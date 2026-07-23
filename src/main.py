@@ -488,7 +488,12 @@ class ManagerWindow(QDialog):
             self.done(0)
         else:
             configuration_check_dialog = ConfigurationCheckDialog(self, configuration=configuration)
-            configuration_check_dialog.exec()
+            result = configuration_check_dialog.exec()
+            if result == 2:
+                self.apply_configuration(configuration=configuration)
+
+    def apply_configuration(self, configuration=None):
+        print(configuration)
 
 class ConfigurationCheckDialog(QDialog):
     def __init__(self, parent=None, configuration=None):
@@ -502,6 +507,9 @@ class ConfigurationCheckDialog(QDialog):
         load_ui(ui_path, self)
 
         self.list_configuration()
+
+        self.apply_button = self.buttonBox.button(QDialogButtonBox.Apply)
+        self.apply_button.clicked.connect(self.applyEvent)
 
     def list_configuration(self):
         layout = self.verticalLayout
@@ -530,6 +538,9 @@ class ConfigurationCheckDialog(QDialog):
             if config_value != None:
                 label = QLabel(f"{configuration_labels[config_name]}: {config_value}")
                 layout.addWidget(label)
+    
+    def applyEvent(self):
+        self.done(2)
 
 class MainWindow(QMainWindow):
     def __init__(self):
