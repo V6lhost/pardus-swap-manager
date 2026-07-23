@@ -21,7 +21,7 @@ from PySide6.QtCore import (
 )
 
 from custom_widgets import * # CircularStatusWidget, SpinnerWidget, ProgressbarWidget
-from helper_functions import * # get_memory_status, get_swap_information, check_cpu_avx_support, get_disk_type, check_swap_requirement, prepare_silesia_benchmark_data, benchmark_disk, benchmark_algorithm, clear_cache, check_and_disable_cow, score_by_threshold, get_swappiness, get_usable_compression_algorithms, get_partitions, set_swappiness
+from helper_functions import * # get_memory_status, get_swap_information, check_cpu_avx_support, get_disk_type, check_swap_requirement, prepare_silesia_benchmark_data, benchmark_disk, benchmark_algorithm, clear_cache, check_and_disable_cow, score_by_threshold, get_swappiness, get_usable_compression_algorithms, get_partitions, set_swappiness, set_zram_configuration
 from calibration import * # calculate_disk_score
 
 # Custom ui loader class and function to make the code cleaner
@@ -496,6 +496,10 @@ class ManagerWindow(QDialog):
         print(configuration)
         swappiness = configuration["swappiness"]
         set_swappiness(swappiness)
+        zram = configuration["zram"]
+        swap = configuration["swap"]
+        if configuration["type"] == "zram":
+            set_zram_configuration(zram)
 
 class ConfigurationCheckDialog(QDialog):
     def __init__(self, parent=None, configuration=None):

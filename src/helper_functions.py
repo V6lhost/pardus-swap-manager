@@ -552,3 +552,107 @@ def set_swappiness(value):
         print("Sysctl configuration reloaded")
     except subprocess.CalledProcessError as e:
         print(f"Error while reloading sysctl configuration: {e}")
+
+def set_zram_configuration(zram_data):
+
+    if zram_data["enabled"]:
+        configuration = f"""[zram0]
+zram-size = {int(zram_data["size"] * 1024)}
+swap-priority = {zram_data["priority"]}
+compression-algorithm = {zram_data["algorithm"]}
+"""
+        try:
+            with open("/etc/systemd/zram-generator.conf", "w", encoding="UTF-8") as f:
+                f.write(configuration)
+        
+        except PermissionError:
+            print("Error while writing zram-generator.conf: PermissionError")
+        
+        except Exception as e:
+            print(f"Error while writing zram-generator.conf: {e}")
+        
+        disable_and_mask_zram()
+        enable_zram()
+
+    else:
+        disable_and_mask_zram()
+
+def disable_and_mask_zram():
+    try: # Stop the zram service
+        command_zram_generator_stop = subprocess.run(
+            ["systemctl", "stop", "systemd-zram-setup@zram0.service"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        print("Zram service stopped")
+    except subprocess.CalledProcessError as e:
+        print(f"Error while stopping zram service: {e}")
+
+    try: # Disable zram kernel module
+        command_zram_generator_stop = subprocess.run(
+            ["modprobe", "-r", "zram"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        print("Zram kernel module removed")
+    except subprocess.CalledProcessError as e:
+        print(f"Error while removing zram kernel module: {e}")
+
+    try:
+        command_mask_zram_service = subprocess.run(
+            ["systemctl", "mask", "systemd-zram-setup@zram0.service"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        print("Zram service masked")
+    except subprocess.CalledProcessError as e:
+        print(f"Error while masking zram service: {e}")
+
+def enable_zram():
+    try: # unmask the zram service
+        command_unmask_zram_service = subprocess.run(
+            ["systemctl", "unmask", "systemd-zram-setup@zram0.service"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        print("Unmasked zram service")
+    except subprocess.CalledProcessError as e:
+        print(f"Error while unmasking zram service")
+
+    try: # Reload the daemon
+        command_daemon_reload = subprocess.run(
+            ["systemctl", "daemon-reload"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        print("Systemctl daemon reloaded")
+    except subprocess.CalledProcessError as e:
+        print(f"Error while reloading systemd daemon: {e}")
+    
+    try: # start the zram service
+        command_zram_generator_restart = subprocess.run(
+            ["systemctl", "start", "systemd-zram-setup@zram0.service"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        print("Zram service reloaded")
+    except subprocess.CalledProcessError as e:
+        print(f"Error while reloading zram service: {e}")
