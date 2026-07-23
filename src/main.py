@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QMainWindow,
     QTableWidgetItem,
-    QVBoxLayout
+    QVBoxLayout,
+    QLabel
 )
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtCore import (
@@ -462,12 +463,12 @@ class ManagerWindow(QDialog):
             swap_size = self.doubleSpinBoxSwapSize.value()
             swap_priority = self.spinBoxSwapPriority.value()
             swap_type = self.comboBoxSwapType.currentIndex()
-            if swap_type: # index 0, file
-                swap_path = self.lineEditSwapFilePath.text()
-                swap_type = "file"
-            else: # index 1, partition
+            if swap_type: # index 1, partition
                 swap_path = self.comboBoxSwapPartitionPath.currentText()
                 swap_type = "partition"
+            else: # index 0, file
+                swap_path = self.lineEditSwapFilePath.text()
+                swap_type = "file"
             zswap_enabled = self.radioButtonZswapEnabled.isChecked()
             zswap_algorithm = self.comboBoxZswapAlgorithm.currentText()
 
@@ -486,19 +487,49 @@ class ManagerWindow(QDialog):
         if configuration is None:
             self.done(0)
         else:
-            configuration_check_dialog = ConfigurationCheckDialog(self)
+            configuration_check_dialog = ConfigurationCheckDialog(self, configuration=configuration)
             configuration_check_dialog.exec()
 
-        print(configuration)
-
 class ConfigurationCheckDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, configuration=None):
         super(ConfigurationCheckDialog, self).__init__()
+
+        self.configuration = configuration
 
         current_dir = Path(__file__).resolve().parent
         ui_path = current_dir.parent / "ui" / "checkConfiguration.ui"
 
         load_ui(ui_path, self)
+
+        self.list_configuration()
+
+    def list_configuration(self):
+        layout = self.verticalLayout
+        configuration_labels = {
+            "swappiness": "Swappiness",
+            "type": "Type",
+            "zram": "Zram",
+            "swap": "Swap",
+            "path": "Path",
+            "size": "Size",
+            "priority": "Priority",
+            "algorithm": "Zram algorithm",
+            "zswap_enabled": "Zswap",
+            "zswap_algorithm": "Zswap algorithm",
+            "enabled": "Enabled"
+        }
+
+        label_swappiness = QLabel(f"{configuration_labels["swappiness"]}: {self.configuration["swappiness"]}")
+        layout.addWidget(label_swappiness)
+
+        label_type = QLabel(f"{configuration_labels["type"]}: {self.configuration["type"]}")
+        layout.addWidget(label_type)
+
+        current_config = self.configuration[self.configuration["type"]]
+        for config_name, config_value in current_config.items():
+            if config_value != None:
+                label = QLabel(f"{configuration_labels[config_name]}: {config_value}")
+                layout.addWidget(label)
 
 class MainWindow(QMainWindow):
     def __init__(self):
