@@ -530,3 +530,25 @@ def get_partitions():
         print(f"Error while getting partitions: {e}")
     
     return partitions
+
+def set_swappiness(value):
+    try:
+        with open("/etc/sysctl.d/99-swappiness.conf", "w", encoding="UTF-8") as f:
+            f.write(f"vm.swappiness = {value}\n")
+    except PermissionError:
+        print("Error while setting swappiness value: Permission error")
+    except Exception as e:
+        print(f"Error while setting swappiness: {e}")
+    
+    try:
+        command = subprocess.run(
+            ["sysctl", "--system"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        print("Sysctl configuration reloaded")
+    except subprocess.CalledProcessError as e:
+        print(f"Error while reloading sysctl configuration: {e}")
