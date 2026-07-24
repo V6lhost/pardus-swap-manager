@@ -308,9 +308,6 @@ class ManagerWindow(QDialog):
         zram = self.swaps["zram"]
         swap = self.swaps["swap"]
 
-        self.comboBoxSwapType.addItem("File")
-        self.comboBoxSwapType.addItem("Partition")
-
         self.spinBoxSwappiness.setValue(self.swappiness)
 
         for algorithm in self.usable_algorithms:
@@ -318,7 +315,9 @@ class ManagerWindow(QDialog):
             self.comboBoxZswapAlgorithm.addItem(algorithm)
         
         for partition in self.partitions:
-            self.comboBoxSwapPartitionPath.addItem(partition)
+            self.comboBoxSwapPath.addItem(partition)
+        
+        self.comboBoxSwapPath.addItem("Swapfile on /")
 
         if zram["enabled"]:
             self.doubleSpinBoxZramSize.setValue(zram["size"])
@@ -332,14 +331,10 @@ class ManagerWindow(QDialog):
         if swap["enabled"]:
             self.doubleSpinBoxSwapSize.setValue(swap["size"])
             self.spinBoxSwapPriority.setValue(swap["priority"])
-            if swap["type"] == "partition":
-                self.comboBoxSwapType.setCurrentText("Partition")
-                self.comboBoxSwapPartitionPath.setCurrentText(swap["path"])
-                self.stackedWidgetSwapPath.setCurrentIndex(1)
-            else:
-                self.comboBoxSwapType.setCurrentText("File")
-                self.lineEditSwapFilePath.setText(swap["path"])
-                self.stackedWidgetSwapPath.setCurrentIndex(0)
+            if swap["type"] == "file":
+                self.comboBoxSwapPath.setCurrentText("Swapfile on /")
+            else: 
+                self.comboBoxSwapPath.setCurrentText(swap["path"])
             
             self.radioButtonZswapEnabled.setChecked(swap["zswap_enabled"])
             self.comboBoxZswapAlgorithm.setEnabled(swap["zswap_enabled"])
@@ -348,9 +343,6 @@ class ManagerWindow(QDialog):
         else:
             self.doubleSpinBoxSwapSize.setValue(0.0)
             self.spinBoxSwapPriority.setValue(0)
-            self.comboBoxSwapType.setCurrentText("File")
-            self.lineEditSwapFilePath.setText("/swapfile")
-            self.stackedWidgetSwapPath.setCurrentIndex(0)
             self.radioButtonZswapEnabled.setChecked(swap["zswap_enabled"])
             self.comboBoxZswapAlgorithm.setEnabled(swap["zswap_enabled"])
             self.comboBoxZswapAlgorithm.setCurrentText(swap["zswap_algorithm"])
@@ -399,23 +391,10 @@ class ManagerWindow(QDialog):
         # Enable the zswap algorithm combo box if radio button is checked
         self.radioButtonZswapEnabled.toggled.connect(self.comboBoxZswapAlgorithm.setEnabled)
 
-        # Change swap path stacked widget index when swaptype value changed
-        self.comboBoxSwapType.currentIndexChanged.connect(lambda value: self.stackedWidgetSwapPath.setCurrentIndex(value))
-
         # Swappiness value reset button. now it just sets the vaule to last saved. TODO: make it set a fixed default level when right clicked
         self.buttonSwappinessReset.clicked.connect(lambda: self.sliderSwappiness.setValue(self.swappiness))
 
-        self.buttonOpenFilePicker.clicked.connect(self.open_file_picker)
-
         self.apply_button.clicked.connect(lambda: self.open_apply_configuration_dialog(configuration=self.get_configuration_from_ui()))
-
-    def open_file_picker(self):
-        path, _ = QFileDialog.getOpenFileName( # 'path, _' because _ takes the second variable and left a cleaner output to path variable
-            self, "Choose swapfile", "/"
-        )
-
-        if path:
-            self.lineEditSwapFilePath.setText(path)
 
     def get_configuration_from_ui(self):
         configuration = {
@@ -462,13 +441,11 @@ class ManagerWindow(QDialog):
             configuration["type"] = "swap"
             swap_size = self.doubleSpinBoxSwapSize.value()
             swap_priority = self.spinBoxSwapPriority.value()
-            swap_type = self.comboBoxSwapType.currentIndex()
-            if swap_type: # index 1, partition
-                swap_path = self.comboBoxSwapPartitionPath.currentText()
-                swap_type = "partition"
-            else: # index 0, file
-                swap_path = self.lineEditSwapFilePath.text()
+            swap_path = self.comboBoxSwapPath.currentText()
+            if swap_path == "Swapfile on /":
                 swap_type = "file"
+            else:
+                swap_type = "partition"
             zswap_enabled = self.radioButtonZswapEnabled.isChecked()
             zswap_algorithm = self.comboBoxZswapAlgorithm.currentText()
 
@@ -500,6 +477,8 @@ class ManagerWindow(QDialog):
         swap = configuration["swap"]
         if configuration["type"] == "zram":
             set_zram_configuration(zram)
+        else:
+            set_swap_configuration(swap)
 
 class ConfigurationCheckDialog(QDialog):
     def __init__(self, parent=None, configuration=None):

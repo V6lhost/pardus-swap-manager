@@ -169,19 +169,56 @@
           <bool>true</bool>
          </property>
          <layout class="QGridLayout" name="gridLayout">
-          <item row="4" column="0">
+          <item row="3" column="2">
+           <widget class="QComboBox" name="comboBoxZswapAlgorithm">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="labelPriorityText">
+            <property name="text">
+             <string>Priority:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <layout class="QHBoxLayout" name="horizontalLayoutSwapSize">
+            <item>
+             <widget class="QSlider" name="sliderSwapSize">
+              <property name="cursor">
+               <cursorShape>SizeHorCursor</cursorShape>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="doubleSpinBoxSwapSize">
+              <property name="cursor">
+               <cursorShape>SizeVerCursor</cursorShape>
+              </property>
+              <property name="suffix">
+               <string> GiB</string>
+              </property>
+              <property name="decimals">
+               <number>1</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="3" column="0">
            <widget class="QRadioButton" name="radioButtonZswapEnabled">
             <property name="text">
              <string>Zswap enabled</string>
             </property>
            </widget>
           </item>
-          <item row="4" column="2">
-           <widget class="QComboBox" name="comboBoxZswapAlgorithm">
-            <property name="enabled">
-             <bool>false</bool>
-            </property>
-           </widget>
+          <item row="2" column="2">
+           <widget class="QComboBox" name="comboBoxSwapPath"/>
           </item>
           <item row="1" column="2">
            <layout class="QHBoxLayout" name="horizontalLayoutSwapPriority">
@@ -225,30 +262,6 @@
             </item>
            </layout>
           </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="labelTypeText">
-            <property name="text">
-             <string>Type:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="2">
-           <widget class="QComboBox" name="comboBoxSwapType"/>
-          </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="labelPriorityText">
-            <property name="text">
-             <string>Priority:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="0">
-           <widget class="QLabel" name="labelPathText">
-            <property name="text">
-             <string>Path:</string>
-            </property>
-           </widget>
-          </item>
           <item row="0" column="0">
            <widget class="QLabel" name="labelSizeText">
             <property name="text">
@@ -256,74 +269,11 @@
             </property>
            </widget>
           </item>
-          <item row="0" column="2">
-           <layout class="QHBoxLayout" name="horizontalLayoutSwapSize">
-            <item>
-             <widget class="QSlider" name="sliderSwapSize">
-              <property name="cursor">
-               <cursorShape>SizeHorCursor</cursorShape>
-              </property>
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QDoubleSpinBox" name="doubleSpinBoxSwapSize">
-              <property name="cursor">
-               <cursorShape>SizeVerCursor</cursorShape>
-              </property>
-              <property name="suffix">
-               <string> GiB</string>
-              </property>
-              <property name="decimals">
-               <number>1</number>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="3" column="2">
-           <widget class="QStackedWidget" name="stackedWidgetSwapPath">
-            <property name="minimumSize">
-             <size>
-              <width>0</width>
-              <height>0</height>
-             </size>
+          <item row="2" column="0">
+           <widget class="QLabel" name="labelTypeText">
+            <property name="text">
+             <string>Path:</string>
             </property>
-            <property name="maximumSize">
-             <size>
-              <width>16777215</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="currentIndex">
-             <number>0</number>
-            </property>
-            <widget class="QWidget" name="pageFilePath">
-             <layout class="QHBoxLayout" name="horizontalLayout_5">
-              <item>
-               <widget class="QLineEdit" name="lineEditSwapFilePath"/>
-              </item>
-              <item>
-               <widget class="QPushButton" name="buttonOpenFilePicker">
-                <property name="text">
-                 <string/>
-                </property>
-                <property name="icon">
-                 <iconset theme="QIcon::ThemeIcon::DocumentPrintPreview"/>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </widget>
-            <widget class="QWidget" name="pagePartitionPath">
-             <layout class="QHBoxLayout" name="horizontalLayout_4">
-              <item>
-               <widget class="QComboBox" name="comboBoxSwapPartitionPath"/>
-              </item>
-             </layout>
-            </widget>
            </widget>
           </item>
          </layout>
